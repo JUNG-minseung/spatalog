@@ -1,0 +1,55 @@
+
+
+generator client {
+  provider = "prisma-client-js"
+  output = "./generated/userDataClient"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL2")
+}
+
+model Account {
+  id Int @id @default(autoincrement())
+  account String @unique
+  password String @map("password")
+  name String @map("name")
+  characters Character []
+
+  @@map("account")
+}
+
+model Character {
+  id Int @id @default(autoincrement())
+  name String @unique
+  health Int @default(500)
+  power Int @default(100) 
+  money Int @default(10000)
+
+  accountId Int @map("account_id")
+  account Account @realation(fields: [accountid], referneces: [id])
+
+  characterInventory CharacterInventory[]
+  charactersItem CharactersItem[]
+
+  @@map("character_inventory")
+}
+
+model CharacterInventory {
+  id Int @id @default(autoincrement())
+  characterId Int 
+  itemId Int 
+  character Character @realation(fields: [characterId], referneces:[id])
+
+  @@map("character_inventory")
+}
+
+model CharacterItem {
+  id Int @id @default(autoincrement())
+  characterId Int
+  itemId Int
+  character Character @realation(fields: [characterId], referneces:[id])
+
+  @@map("character_item")
+}
