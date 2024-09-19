@@ -1,5 +1,8 @@
 import express from"express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { userDataClient } from "../utils/prisma/index.js";
+import authMiddleware from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
@@ -89,6 +92,123 @@ router.post("/sign-in", async (req, res, next) =>{
             .json({message: "로그인 중 에러가 발생"});
     }
 
+});
+
+
+router.post("/character", authMiddleware, async (req, res) => {
+    const {name} = req.body;
+    const accountId = req.user.id;
+
+    try {
+        const isExistCharacterName = await userDataClient.character.findeUnique({
+            where: {name},
+        });
+
+        if (isExistCharacterName) {
+            return res
+                .status(409)
+                .json({message:"이미 존재하는 캐릭터명"});
+        }
+
+        const newCharacter = await userDataClient.character.create({
+            data:{
+                name,
+                accountId,
+                health: 500,
+                power:100,
+                money:10000,
+                charterInventory: {
+                    create:[],
+                },
+            },
+            include: {
+                charterInventory: true,
+                characterItem: true,
+            },
+        });
+
+        return res.status(201).json({id: newCharacter.id});
+    } catch(error) {
+        console.error("캐릭터 생성 중 에러 발생:", error);
+        return res 
+            .status(500)
+            .json({message:"캐릭터 생성 중 오류가 발생하였습니다."});
+    }
+})
+
+
+router.delete('/character/:id', authMiddleware, async (req, res) => {
+    const characterId = parseInt(req.params.id, 10);
+    const accountId = req.user.id;
+
+    try {
+        const character = await userDataClient.character.findeUnique({
+            where: { id:characterId},
+            include:{account: true},
+        });
+
+        if (!character) {
+            return res.status(404).json({message:'ㅋ캐릭터를 찾을수 없습니다.'});
+        }
+
+        if(character.accountId !== accountId) {
+            return res
+                .status(403)
+                .json({message:'해당 캐릭터 권한이 없습니다.'});
+        }
+
+        await userDataClient.character.delete({
+            where: {id:characterId},
+        });
+
+        return res 
+            .status(200)
+            .json({message:'캐릭터를 삭제 하였습니다.'});
+    } catch(error) {
+        console.error('캐릭터 삭제 중 에러 발생', error);
+        return res
+            .status(500)
+            .json({message:'캐릭터 삭제 도중 오류 발생'});
+    }
+})
+
+router.get("/character/:id", authMiddleware, async (req,res) =>{
+    const characterId = parseInt(req.params.id, 10);
+    const accountId = req.user.id;
+
+    try {
+        const character = await userDataClient.character.findeUnique({
+            where: { id:characterId},
+            include: {
+                account: true,
+                charterInventory: true,
+                characterItem:true,
+            },
+        });
+
+        if(!character) {
+            return res.status(404).json({message:"캐릭터를 찾을 수 없습니다."});
+        }
+
+        const isOwner = character.accountId === accountId;
+
+        const characterData = {
+            name: character.name,
+            health:character.health,
+            power:character.power,
+        };
+
+        if(isOwner) {
+            characterData.money = character.money;
+        }
+
+        return res.status(200).json(characterData);
+    } catch(error) {
+        console.error("캐릭터 조회중 에러 발생:", error);
+        return res
+            .status(500)
+            .json({message:"캐릭터 조회중 오류가 발생"});
+    }
 });
 
 export default router;
